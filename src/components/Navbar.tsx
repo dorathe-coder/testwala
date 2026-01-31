@@ -4,12 +4,14 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
-import { Menu, X, Sun, Moon, LogOut } from 'lucide-react'
+import { Menu, X, Sun, Moon, LogOut, Shield } from 'lucide-react'
 import { getUser, signOut } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
   const [user, setUser] = useState<any>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [mounted, setMounted] = useState(false)
   const { theme, setTheme } = useTheme()
   const router = useRouter()
@@ -22,11 +24,22 @@ export default function Navbar() {
   async function loadUser() {
     const currentUser = await getUser()
     setUser(currentUser)
+
+    if (currentUser) {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', currentUser.id)
+        .single()
+
+      setIsAdmin(userData?.role === 'admin')
+    }
   }
 
   async function handleLogout() {
     await signOut()
     setUser(null)
+    setIsAdmin(false)
     router.push('/')
     router.refresh()
   }
@@ -44,6 +57,27 @@ export default function Navbar() {
           </div>
 
           <div className="hidden md:flex items-center space-x-4">
+            {user && (
+              <>
+                <Link href="/tests" className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
+                  Browse Tests
+                </Link>
+                <Link href="/dashboard" className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
+                  Dashboard
+                </Link>
+              </>
+            )}
+
+            {isAdmin && (
+              <Link 
+                href="/admin" 
+                className="flex items-center space-x-1 px-3 py-2 text-sm font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50"
+              >
+                <Shield className="w-4 h-4" />
+                <span>Admin</span>
+              </Link>
+            )}
+
             <button
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
               className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700"
@@ -57,9 +91,6 @@ export default function Navbar() {
 
             {user ? (
               <>
-                <Link href="/dashboard" className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600">
-                  Dashboard
-                </Link>
                 <span className="text-sm text-gray-600 dark:text-gray-400">
                   {user.user_metadata?.full_name || user.email}
                 </span>
@@ -102,9 +133,17 @@ export default function Navbar() {
           <div className="px-2 pt-2 pb-3 space-y-1">
             {user ? (
               <>
+                <Link href="/tests" className="block px-3 py-2 rounded-md text-base font-medium">
+                  Browse Tests
+                </Link>
                 <Link href="/dashboard" className="block px-3 py-2 rounded-md text-base font-medium">
                   Dashboard
                 </Link>
+                {isAdmin && (
+                  <Link href="/admin" className="block px-3 py-2 rounded-md text-base font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-600">
+                    🔧 Admin Panel
+                  </Link>
+                )}
                 <button onClick={handleLogout} className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-600">
                   Logout
                 </button>
