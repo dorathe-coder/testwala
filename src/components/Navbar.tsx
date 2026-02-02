@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
-import { Menu, X, Sun, Moon, LogOut, Shield } from 'lucide-react'
+import { Menu, X, Sun, Moon, LogOut, Shield, User } from 'lucide-react'
 import { getUser, signOut } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 
@@ -65,6 +65,12 @@ export default function Navbar() {
                 <Link href="/dashboard" className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
                   Dashboard
                 </Link>
+                <Link href="/history" className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
+                  History
+                </Link>
+                <Link href="/leaderboard" className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
+                  Leaderboard
+                </Link>
               </>
             )}
 
@@ -91,9 +97,13 @@ export default function Navbar() {
 
             {user ? (
               <>
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  {user.user_metadata?.full_name || user.email}
-                </span>
+                <Link
+                  href="/profile"
+                  className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                >
+                  <User className="w-4 h-4" />
+                  <span>{user.user_metadata?.full_name || user.email?.split('@')[0]}</span>
+                </Link>
                 <button
                   onClick={handleLogout}
                   className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
@@ -138,6 +148,15 @@ export default function Navbar() {
                 </Link>
                 <Link href="/dashboard" className="block px-3 py-2 rounded-md text-base font-medium">
                   Dashboard
+                </Link>
+                <Link href="/history" className="block px-3 py-2 rounded-md text-base font-medium">
+                  History
+                </Link>
+                <Link href="/leaderboard" className="block px-3 py-2 rounded-md text-base font-medium">
+                  Leaderboard
+                </Link>
+                <Link href="/profile" className="block px-3 py-2 rounded-md text-base font-medium">
+                  Profile
                 </Link>
                 {isAdmin && (
                   <Link href="/admin" className="block px-3 py-2 rounded-md text-base font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-600">
