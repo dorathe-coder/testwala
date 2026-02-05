@@ -14,6 +14,7 @@ interface Question {
   option_b: string
   option_c: string
   option_d: string
+  correct_answer: string
   marks: number
   order_number: number
 }
@@ -42,7 +43,7 @@ export default function TakeTestPage() {
   }, [])
 
   useEffect(() => {
-    if (timeRemaining <= 0 || questions.length === 0) return
+    if (timeRemaining <= 0) return
 
     const timer = setInterval(() => {
       setTimeRemaining((prev) => {
@@ -55,7 +56,7 @@ export default function TakeTestPage() {
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [timeRemaining, questions.length])
+  }, [timeRemaining])
 
   async function loadTestData() {
     const user = await getUser()
@@ -64,33 +65,21 @@ export default function TakeTestPage() {
       return
     }
 
-    console.log('Loading test data for:', testId)
-
-    const { data: testData, error: testError } = await supabase
+    const { data: testData } = await supabase
       .from('tests')
       .select('*')
       .eq('id', testId)
       .single()
 
-    console.log('Test data:', testData, 'Error:', testError)
-
-    const { data: questionsData, error: questionsError } = await supabase
+    const { data: questionsData } = await supabase
       .from('questions')
       .select('*')
       .eq('test_id', testId)
       .order('order_number')
 
-    console.log('Questions data:', questionsData, 'Error:', questionsError)
-
-    if (!testData) {
-      toast.error('Test not found')
+    if (!testData || !questionsData || questionsData.length === 0) {
+      toast.error('Test data not found')
       router.push('/tests')
-      return
-    }
-
-    if (!questionsData || questionsData.length === 0) {
-      toast.error('No questions available for this test')
-      router.push(`/tests/${testId}`)
       return
     }
 
@@ -109,12 +98,6 @@ export default function TakeTestPage() {
     })
     setAnswers(initialAnswers)
     setLoading(false)
-    
-    console.log('Test loaded successfully:', {
-      testTitle: testData.title,
-      questionCount: questionsData.length,
-      duration: testData.duration
-    })
   }
 
   function selectAnswer(answer: string) {
@@ -179,103 +162,125 @@ export default function TakeTestPage() {
   async function submitTest() {
     if (submitting) return
     setSubmitting(true)
+    
+    try {
+      // Calculate score
+      let correct = 0
+      let incorrect = 0
+      let unattempted = 0
+      let score = 0
 
-    console.log('Starting submission process...')
+      const userAnswers = []
 
-    // Calculate score
-    let correct = 0
-    let incorrect = 0
-    let unattempted = 0
-    let score = 0
-
-    const userAnswers = []
-
-    // First, get all questions with correct answers
-    const { data: questionsWithAnswers } = await supabase
-      .from('questions')
-      .select('id, correct_answer, marks')
-      .eq('test_id', testId)
-
-    const questionMap = new Map(questionsWithAnswers?.map(q => [q.id, q]) || [])
-
-    for (const question of questions) {
-      const answer = answers[question.id]
-      const questionData = questionMap.get(question.id)
-      
-      if (!answer.selectedAnswer) {
-        unattempted++
-        userAnswers.push({
-          attempt_id: attemptId,
-          question_id: question.id,
-          selected_answer: null,
-          is_correct: false,
-          marks_obtained: 0
-        })
-      } else {
-        const isCorrect = answer.selectedAnswer === questionData?.correct_answer
-
-        if (isCorrect) {
-          correct++
-          score += questionData?.marks || 4
+      for (const question of questions) {
+        const answer = answers[question.id]
+        
+        if (!answer?.selectedAnswer) {
+          unattempted++
+          userAnswers.push({
+            attempt_id: attemptId,
+            question_id: question.id,
+            selected_answer: null,
+            is_correct: false,
+            marks_obtained: 0
+          })
         } else {
-          incorrect++
-          if (test.negative_marking) {
-            score -= 1
+          const isCorrect = answer.selectedAnswer === question.correct_answer
+
+          if (isCorrect) {
+            correct++
+            score += question.marks
+          } else {
+            incorrect++
+            // Check if negative marking is enabled
+            if (test.negative_marking) {
+              // Deduct marks for wrong answer (usually -1 or -0.25 per question)
+              score = Math.max(0, score - (test.negative_marking_value || 1))
+            }
           }
+
+          userAnswers.push({
+            attempt_id: attemptId,
+            question_id: question.id,
+            selected_answer: answer.selectedAnswer,
+            is_correct: isCorrect,
+            marks_obtained: isCorrect ? question.marks : (test.negative_marking ? -(test.negative_marking_value || 1) : 0)
+          })
         }
-
-        userAnswers.push({
-          attempt_id: attemptId,
-          question_id: question.id,
-          selected_answer: answer.selectedAnswer,
-          is_correct: isCorrect,
-          marks_obtained: isCorrect ? (questionData?.marks || 4) : (test.negative_marking ? -1 : 0)
-        })
       }
-    }
 
-    console.log('Calculated results:', { correct, incorrect, unattempted, score })
-
-    // Save user answers
-    const { error: answersError } = await supabase
-      .from('user_answers')
-      .insert(userAnswers)
-
-    if (answersError) {
-      console.error('Error saving answers:', answersError)
-      toast.error('Error saving answers')
-      setSubmitting(false)
-      return
-    }
-
-    // Update test attempt
-    const timeTaken = (test.duration * 60) - timeRemaining
-    const { error: updateError } = await supabase
-      .from('test_attempts')
-      .update({
+      console.log('Calculated Results:', {
         score,
+        correct,
+        incorrect,
+        unattempted,
+        total_questions: questions.length
+      })
+
+      // First, delete any existing answers for this attempt to avoid duplicates
+      const { error: deleteError } = await supabase
+        .from('user_answers')
+        .delete()
+        .eq('attempt_id', attemptId)
+
+      if (deleteError) {
+        console.error('Error deleting existing answers:', deleteError)
+      }
+
+      // Save user answers in batches
+      const batchSize = 10
+      for (let i = 0; i < userAnswers.length; i += batchSize) {
+        const batch = userAnswers.slice(i, i + batchSize)
+        const { error: answersError } = await supabase
+          .from('user_answers')
+          .insert(batch)
+
+        if (answersError) {
+          console.error('Error saving answers batch:', answersError)
+          throw answersError
+        }
+      }
+
+      // Update test attempt with calculated results
+      const timeTaken = (test.duration * 60) - timeRemaining
+      
+      const updateData = {
+        score: score,
+        total_questions: questions.length,
         correct_answers: correct,
         incorrect_answers: incorrect,
-        unattempted,
+        unattempted: unattempted,
         time_taken: timeTaken,
-        completed_at: new Date().toISOString()
-      })
-      .eq('id', attemptId)
+        completed_at: new Date().toISOString(),
+        is_completed: true
+      }
 
-    if (updateError) {
-      console.error('Error updating attempt:', updateError)
-      toast.error('Error submitting test')
-      setSubmitting(false)
-      return
-    }
+      console.log('Updating attempt with:', updateData)
 
-    console.log('Test submitted successfully')
-    toast.success('Test submitted successfully!')
-    
-    // Small delay before redirect
-    setTimeout(() => {
+      const { error: updateError } = await supabase
+        .from('test_attempts')
+        .update(updateData)
+        .eq('id', attemptId)
+
+      if (updateError) {
+        console.error('Error updating attempt:', updateError)
+        throw updateError
+      }
+
+      console.log('Test submitted successfully!')
+      toast.success('Test submitted successfully!')
+      
+      // Wait a moment for the database to update
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      // Redirect to results page
       router.push(`/tests/${testId}/results/${attemptId}`)
-    }, 500)
+
+    } catch (error) {
+      console.error('Submit error:', error)
+      toast.error('Error submitting test. Please try again.')
+      setSubmitting(false)
+    }
   }
 
   const formatTime = (seconds: number) => {
@@ -301,20 +306,17 @@ export default function TakeTestPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading test...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     )
   }
 
-  if (questions.length === 0) {
+  if (!test || questions.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <p className="text-xl text-gray-600 dark:text-gray-400 mb-4">No questions available</p>
+          <p className="text-gray-500 dark:text-gray-400 mb-4">No questions available</p>
           <button
             onClick={() => router.push('/tests')}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -393,7 +395,7 @@ export default function TakeTestPage() {
                     }`}
                   >
                     <div className="flex items-start space-x-3">
-                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
                         currentAnswer?.selectedAnswer === option
                           ? 'border-blue-600 bg-blue-600 text-white'
                           : 'border-gray-400'

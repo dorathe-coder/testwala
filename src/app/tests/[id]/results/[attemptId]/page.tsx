@@ -18,6 +18,7 @@ interface Result {
 }
 
 interface QuestionResult {
+  id: string
   question_text: string
   option_a: string
   option_b: string
@@ -53,63 +54,120 @@ export default function ResultsPage() {
       return
     }
 
-    // Load test attempt
-    const { data: attemptData } = await supabase
-      .from('test_attempts')
-      .select('*')
-      .eq('id', attemptId)
-      .single()
+    console.log('Loading results for attempt:', attemptId)
 
-    // Load test details
-    const { data: testData } = await supabase
-      .from('tests')
-      .select('*')
-      .eq('id', testId)
-      .single()
+    try {
+      // Load test attempt
+      const { data: attemptData, error: attemptError } = await supabase
+        .from('test_attempts')
+        .select('*')
+        .eq('id', attemptId)
+        .single()
 
-    // Load user answers with questions
-    const { data: answersData } = await supabase
-      .from('user_answers')
-      .select(`
-        *,
-        questions (
-          question_text,
-          option_a,
-          option_b,
-          option_c,
-          option_d,
-          correct_answer,
-          explanation,
-          marks,
-          order_number
-        )
-      `)
-      .eq('attempt_id', attemptId)
-      .order('questions(order_number)')
+      if (attemptError) {
+        console.error('Error loading attempt:', attemptError)
+        throw attemptError
+      }
 
-    if (attemptData) {
-      setResult({
-        score: attemptData.score,
-        total_questions: attemptData.total_questions,
-        correct_answers: attemptData.correct_answers,
-        incorrect_answers: attemptData.incorrect_answers,
-        unattempted: attemptData.unattempted,
-        time_taken: attemptData.time_taken
-      })
-    }
+      console.log('Attempt data loaded:', attemptData)
 
-    setTest(testData)
+      // Load test details
+      const { data: testData } = await supabase
+        .from('tests')
+        .select('*')
+        .eq('id', testId)
+        .single()
 
-    if (answersData) {
-      const formattedResults = answersData.map((answer: any) => ({
-        ...answer.questions,
-        selected_answer: answer.selected_answer,
-        is_correct: answer.is_correct
-      }))
+      console.log('Test data loaded:', testData)
+
+      // Load user answers
+      const { data: answersData } = await supabase
+        .from('user_answers')
+        .select('*')
+        .eq('attempt_id', attemptId)
+
+      console.log('Answers loaded:', answersData)
+
+      // Load questions
+      const { data: questionsData } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('test_id', testId)
+        .order('order_number')
+
+      console.log('Questions loaded:', questionsData)
+
+      // Calculate results manually from answers
+      let score = 0
+      let correct_answers = 0
+      let incorrect_answers = 0
+      let unattempted = 0
+      
+      const formattedResults: QuestionResult[] = []
+
+      if (questionsData && answersData) {
+        questionsData.forEach((question: any) => {
+          const answer = answersData.find((a: any) => a.question_id === question.id)
+          const selected_answer = answer?.selected_answer || null
+          
+          let is_correct = false
+          
+          if (selected_answer === null) {
+            unattempted++
+          } else if (selected_answer === question.correct_answer) {
+            is_correct = true
+            correct_answers++
+            score += question.marks || 1
+          } else {
+            incorrect_answers++
+          }
+
+          formattedResults.push({
+            ...question,
+            selected_answer: selected_answer,
+            is_correct: is_correct
+          })
+        })
+      }
+
+      // If attempt data doesn't have results, calculate them
+      const resultData: Result = {
+        score: attemptData?.score || score,
+        total_questions: questionsData?.length || 0,
+        correct_answers: attemptData?.correct_answers || correct_answers,
+        incorrect_answers: attemptData?.incorrect_answers || incorrect_answers,
+        unattempted: attemptData?.unattempted || unattempted,
+        time_taken: attemptData?.time_taken || 0
+      }
+
+      console.log('Final result data:', resultData)
+      console.log('Formatted results:', formattedResults)
+
+      setResult(resultData)
+      setTest(testData)
       setQuestionResults(formattedResults)
-    }
 
-    setLoading(false)
+      // If attempt data is incomplete, update it in database
+      if (!attemptData?.is_completed || attemptData?.score === null) {
+        await supabase
+          .from('test_attempts')
+          .update({
+            score: resultData.score,
+            total_questions: resultData.total_questions,
+            correct_answers: resultData.correct_answers,
+            incorrect_answers: resultData.incorrect_answers,
+            unattempted: resultData.unattempted,
+            is_completed: true,
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', attemptId)
+      }
+
+    } catch (error) {
+      console.error('Error loading results:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const formatTime = (seconds: number) => {
@@ -119,7 +177,7 @@ export default function ResultsPage() {
   }
 
   const getPercentage = () => {
-    if (!result || !test) return 0
+    if (!result || !test || test.total_marks === 0) return 0
     return Math.round((result.score / test.total_marks) * 100)
   }
 
@@ -133,6 +191,21 @@ export default function ResultsPage() {
     return { grade: 'F', color: 'text-red-600' }
   }
 
+  // Calculate accuracy correctly
+  const getAccuracy = () => {
+    if (!result || result.total_questions === 0) return 0
+    const attempted = result.correct_answers + result.incorrect_answers
+    if (attempted === 0) return 0
+    return Math.round((result.correct_answers / attempted) * 100)
+  }
+
+  // Calculate attempt rate
+  const getAttemptRate = () => {
+    if (!result || result.total_questions === 0) return 0
+    const attempted = result.correct_answers + result.incorrect_answers
+    return Math.round((attempted / result.total_questions) * 100)
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -142,6 +215,8 @@ export default function ResultsPage() {
   }
 
   const gradeInfo = getGrade()
+  const accuracy = getAccuracy()
+  const attemptRate = getAttemptRate()
 
   return (
     <>
@@ -183,6 +258,9 @@ export default function ResultsPage() {
                 <CheckCircle className="w-8 h-8 text-green-600" />
               </div>
               <p className="text-3xl font-bold text-green-600">{result?.correct_answers || 0}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {result?.total_questions ? Math.round((result.correct_answers / result.total_questions) * 100) : 0}% of total
+              </p>
             </div>
 
             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
@@ -191,6 +269,9 @@ export default function ResultsPage() {
                 <XCircle className="w-8 h-8 text-red-600" />
               </div>
               <p className="text-3xl font-bold text-red-600">{result?.incorrect_answers || 0}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {result?.total_questions ? Math.round((result.incorrect_answers / result.total_questions) * 100) : 0}% of total
+              </p>
             </div>
 
             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
@@ -199,6 +280,9 @@ export default function ResultsPage() {
                 <MinusCircle className="w-8 h-8 text-gray-600" />
               </div>
               <p className="text-3xl font-bold text-gray-600">{result?.unattempted || 0}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {result?.total_questions ? Math.round((result.unattempted / result.total_questions) * 100) : 0}% of total
+              </p>
             </div>
 
             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
@@ -207,6 +291,9 @@ export default function ResultsPage() {
                 <Clock className="w-8 h-8 text-blue-600" />
               </div>
               <p className="text-3xl font-bold text-blue-600">{formatTime(result?.time_taken || 0)}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Total questions: {result?.total_questions || 0}
+              </p>
             </div>
           </div>
 
@@ -222,30 +309,36 @@ export default function ResultsPage() {
                 <div className="flex justify-between mb-2">
                   <span className="text-gray-700 dark:text-gray-300">Accuracy</span>
                   <span className="font-semibold text-gray-900 dark:text-white">
-                    {result?.total_questions ? Math.round((result.correct_answers / result.total_questions) * 100) : 0}%
+                    {accuracy}%
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                   <div
                     className="bg-green-600 h-3 rounded-full"
-                    style={{ width: `${result?.total_questions ? (result.correct_answers / result.total_questions) * 100 : 0}%` }}
+                    style={{ width: `${accuracy}%` }}
                   ></div>
                 </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Percentage of correct answers among attempted questions
+                </p>
               </div>
 
               <div>
                 <div className="flex justify-between mb-2">
-                  <span className="text-gray-700 dark:text-gray-300">Attempted</span>
+                  <span className="text-gray-700 dark:text-gray-300">Attempt Rate</span>
                   <span className="font-semibold text-gray-900 dark:text-white">
-                    {result?.total_questions ? Math.round(((result.correct_answers + result.incorrect_answers) / result.total_questions) * 100) : 0}%
+                    {attemptRate}%
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                   <div
                     className="bg-blue-600 h-3 rounded-full"
-                    style={{ width: `${result?.total_questions ? ((result.correct_answers + result.incorrect_answers) / result.total_questions) * 100 : 0}%` }}
+                    style={{ width: `${attemptRate}%` }}
                   ></div>
                 </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Percentage of questions attempted
+                </p>
               </div>
             </div>
           </div>
@@ -261,7 +354,7 @@ export default function ResultsPage() {
           </div>
 
           {/* Solutions */}
-          {showSolutions && (
+          {showSolutions && questionResults.length > 0 && (
             <div className="space-y-6 mb-8">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
                 Solutions & Explanations
@@ -269,7 +362,7 @@ export default function ResultsPage() {
               
               {questionResults.map((qr, index) => (
                 <div
-                  key={index}
+                  key={qr.id}
                   className={`bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border-2 ${
                     qr.is_correct
                       ? 'border-green-500'
@@ -282,14 +375,23 @@ export default function ResultsPage() {
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex-1">
                       Q{index + 1}. {qr.question_text}
                     </h3>
-                    <div className="ml-4">
+                    <div className="ml-4 flex flex-col items-end">
                       {qr.is_correct ? (
-                        <CheckCircle className="w-8 h-8 text-green-600" />
+                        <span className="flex items-center text-green-600 font-bold mb-1">
+                          <CheckCircle className="w-6 h-6 mr-1" /> Correct
+                        </span>
                       ) : qr.selected_answer ? (
-                        <XCircle className="w-8 h-8 text-red-600" />
+                        <span className="flex items-center text-red-600 font-bold mb-1">
+                          <XCircle className="w-6 h-6 mr-1" /> Incorrect
+                        </span>
                       ) : (
-                        <MinusCircle className="w-8 h-8 text-gray-600" />
+                        <span className="flex items-center text-gray-600 font-bold mb-1">
+                          <MinusCircle className="w-6 h-6 mr-1" /> Not Attempted
+                        </span>
                       )}
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        Marks: {qr.marks}
+                      </span>
                     </div>
                   </div>
 
@@ -307,7 +409,7 @@ export default function ResultsPage() {
                       >
                         <span className="font-semibold">{option})</span> {qr[`option_${option.toLowerCase()}` as keyof QuestionResult]}
                         {option === qr.correct_answer && (
-                          <span className="ml-2 text-green-600 font-bold">✓ Correct</span>
+                          <span className="ml-2 text-green-600 font-bold">✓ Correct Answer</span>
                         )}
                         {option === qr.selected_answer && !qr.is_correct && (
                           <span className="ml-2 text-red-600 font-bold">✗ Your Answer</span>
@@ -329,13 +431,11 @@ export default function ResultsPage() {
 
                   <div className="mt-3 flex items-center justify-between text-sm">
                     <span className="text-gray-600 dark:text-gray-400">
-                      Marks: {qr.marks}
+                      Your Answer: {qr.selected_answer || 'Not Attempted'}
                     </span>
-                    {!qr.selected_answer && (
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Not Attempted
-                      </span>
-                    )}
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Correct Answer: {qr.correct_answer}
+                    </span>
                   </div>
                 </div>
               ))}
