@@ -86,7 +86,7 @@ export default function HistoryPage() {
       .not('completed_at', 'is', null)
       .order('completed_at', { ascending: false })
 
-    setAttempts(data || [])
+    setAttempts(data as any || [])
   }
 
   function applyFilters() {
