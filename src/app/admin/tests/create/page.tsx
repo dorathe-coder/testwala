@@ -24,8 +24,8 @@ export default function CreateTestPage() {
     subject: '',
     language: 'English',
     difficulty: 'Medium',
-    duration: '60',
-    total_marks: '100',
+    duration: 60,
+    total_marks: 100,
     negative_marking: false
   })
   const router = useRouter()
@@ -67,26 +67,20 @@ export default function CreateTestPage() {
     setSubmitting(true)
 
     const { data, error } = await supabase
-  .from('tests')
-  .insert([{
-    title: formData.title,
-    description: formData.description,
-    category_id: formData.category_id,
-    subject: formData.subject,
-    language: formData.language,
-    difficulty: formData.difficulty,
-    duration: parseInt(formData.duration as any),
-    total_marks: parseInt(formData.total_marks as any),
-    negative_marking: formData.negative_marking,
-    is_active: true
-  }])
-  .select()
-      
-      
-        
-        
-      
-    
+      .from('tests')
+      .insert([{
+        title: formData.title,
+        description: formData.description,
+        category_id: formData.category_id,
+        subject: formData.subject,
+        language: formData.language,
+        difficulty: formData.difficulty,
+        duration: formData.duration,
+        total_marks: formData.total_marks,
+        negative_marking: formData.negative_marking,
+        is_active: true
+      }])
+      .select()
 
     if (error) {
       toast.error('Error creating test')
