@@ -32,21 +32,21 @@ export default function BulkPastePage() {
 
   const sampleFormat = `Q1. What is the capital of India?
 A) Mumbai
-B) Delhi
+B) Delhi*
 C) Kolkata
 D) Chennai
-Answer: B
-Explanation: Delhi is the capital and New Delhi is the seat of government.
-Marks: 4
 
 Q2. What is 2+2?
 A) 2
 B) 3
-C) 4
+C) 4*
 D) 5
-Answer: C
-Explanation: Basic addition
-Marks: 4`
+
+Q3. Largest planet in solar system?
+A) Jupiter*
+B) Saturn
+C) Earth
+D) Mars`
 
   useEffect(() => {
     checkAdminAndLoad()
@@ -94,37 +94,59 @@ Marks: 4`
       // Split by question numbers (Q1., Q2., etc.)
       const questionBlocks = textInput.split(/Q\d+\.\s+/).filter(block => block.trim())
 
-      questionBlocks.forEach(block => {
+      questionBlocks.forEach((block, blockIndex) => {
         const lines = block.split('\n').map(l => l.trim()).filter(l => l)
         
-        if (lines.length < 6) return // Not enough data for a question
+        if (lines.length < 4) return // Need at least question + 4 options
 
         const questionText = lines[0]
-        const options = lines.filter(l => /^[A-D]\)/.test(l))
-        const answerLine = lines.find(l => l.toLowerCase().startsWith('answer:'))
-        const explanationLine = lines.find(l => l.toLowerCase().startsWith('explanation:'))
-        const marksLine = lines.find(l => l.toLowerCase().startsWith('marks:'))
-
-        if (!questionText || options.length !== 4 || !answerLine) return
-
-        const option_a = options[0]?.replace(/^A\)\s*/, '') || ''
-        const option_b = options[1]?.replace(/^B\)\s*/, '') || ''
-        const option_c = options[2]?.replace(/^C\)\s*/, '') || ''
-        const option_d = options[3]?.replace(/^D\)\s*/, '') || ''
         
-        const correct_answer = answerLine.replace(/answer:\s*/i, '').trim().toUpperCase()
-        const explanation = explanationLine?.replace(/explanation:\s*/i, '').trim() || ''
-        const marks = marksLine ? parseInt(marksLine.replace(/marks:\s*/i, '').trim()) : 4
+        // Find options with A), B), C), D)
+        const options = lines.filter(l => /^[A-D]\)/.test(l))
+        
+        if (!questionText || options.length !== 4) {
+          console.log(`Skipping question ${blockIndex + 1}: Invalid format`)
+          return
+        }
+
+        // Extract options and find correct answer (marked with *)
+        let correctAnswer = ''
+        const optionA = options[0].replace(/^A\)\s*/, '').trim()
+        const optionB = options[1].replace(/^B\)\s*/, '').trim()
+        const optionC = options[2].replace(/^C\)\s*/, '').trim()
+        const optionD = options[3].replace(/^D\)\s*/, '').trim()
+
+        // Check which option has asterisk
+        if (optionA.includes('*')) {
+          correctAnswer = 'A'
+        } else if (optionB.includes('*')) {
+          correctAnswer = 'B'
+        } else if (optionC.includes('*')) {
+          correctAnswer = 'C'
+        } else if (optionD.includes('*')) {
+          correctAnswer = 'D'
+        }
+
+        if (!correctAnswer) {
+          console.log(`Skipping question ${blockIndex + 1}: No correct answer marked with *`)
+          return
+        }
+
+        // Remove asterisk from options
+        const cleanOptionA = optionA.replace(/\*/g, '').trim()
+        const cleanOptionB = optionB.replace(/\*/g, '').trim()
+        const cleanOptionC = optionC.replace(/\*/g, '').trim()
+        const cleanOptionD = optionD.replace(/\*/g, '').trim()
 
         questions.push({
           question_text: questionText,
-          option_a,
-          option_b,
-          option_c,
-          option_d,
-          correct_answer,
-          explanation,
-          marks
+          option_a: cleanOptionA,
+          option_b: cleanOptionB,
+          option_c: cleanOptionC,
+          option_d: cleanOptionD,
+          correct_answer: correctAnswer,
+          explanation: '',
+          marks: 4
         })
       })
 
@@ -249,10 +271,9 @@ Marks: 4`
                     <ul className="list-disc ml-5 space-y-1">
                       <li>Question number (Q1., Q2., etc.)</li>
                       <li>Question text</li>
-                      <li>4 options (A), B), C), D))</li>
-                      <li>Answer: A/B/C/D</li>
-                      <li>Explanation: (optional)</li>
-                      <li>Marks: (optional, default 4)</li>
+                      <li>4 options: A), B), C), D)</li>
+                      <li><strong>Correct answer marked with * (asterisk)</strong></li>
+                      <li>Example: B) Delhi*</li>
                     </ul>
                   </div>
                 </div>
@@ -279,9 +300,10 @@ Marks: 4`
                     💡 Tips:
                   </h4>
                   <ul className="text-sm text-green-800 dark:text-green-300 space-y-1">
-                    <li>• Leave blank line between questions</li>
+                    <li>• Leave blank line between questions (optional)</li>
                     <li>• Options must start with A), B), C), D)</li>
-                    <li>• Answer must be single letter (A/B/C/D)</li>
+                    <li>• Mark correct answer with * after option text</li>
+                    <li>• Example: C) New Delhi*</li>
                     <li>• You can paste 50+ questions at once!</li>
                   </ul>
                 </div>
@@ -303,15 +325,20 @@ Marks: 4`
                       Q{index + 1}. {q.question_text}
                     </p>
                     <div className="grid grid-cols-2 gap-2 text-sm mb-2">
-                      <p>A) {q.option_a}</p>
-                      <p>B) {q.option_b}</p>
-                      <p>C) {q.option_c}</p>
-                      <p>D) {q.option_d}</p>
+                      <p className={q.correct_answer === 'A' ? 'text-green-600 font-bold' : ''}>
+                        A) {q.option_a}
+                      </p>
+                      <p className={q.correct_answer === 'B' ? 'text-green-600 font-bold' : ''}>
+                        B) {q.option_b}
+                      </p>
+                      <p className={q.correct_answer === 'C' ? 'text-green-600 font-bold' : ''}>
+                        C) {q.option_c}
+                      </p>
+                      <p className={q.correct_answer === 'D' ? 'text-green-600 font-bold' : ''}>
+                        D) {q.option_d}
+                      </p>
                     </div>
-                    <p className="text-sm text-green-600">✓ Correct: {q.correct_answer}</p>
-                    {q.explanation && (
-                      <p className="text-sm text-gray-600 mt-1">💡 {q.explanation}</p>
-                    )}
+                    <p className="text-sm text-green-600">✓ Correct Answer: {q.correct_answer}</p>
                   </div>
                 ))}
                 {parsedQuestions.length > 5 && (
