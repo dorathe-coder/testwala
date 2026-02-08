@@ -26,8 +26,8 @@ interface Attempt {
     test_categories: {
       name: string
       icon: string
-    }
-  }
+    } | null
+  } | null
 }
 
 export default function HistoryPage() {
@@ -94,7 +94,7 @@ export default function HistoryPage() {
 
     // Filter by subject
     if (filterSubject !== 'all') {
-      filtered = filtered.filter(a => a.tests.subject === filterSubject)
+      filtered = filtered.filter(a => a.tests?.subject === filterSubject)
     }
 
     // Sort
@@ -108,7 +108,7 @@ export default function HistoryPage() {
   }
 
   const getUniqueSubjects = () => {
-    const subjects = attempts.map(a => a.tests.subject)
+    const subjects = attempts.map(a => a.tests?.subject).filter(Boolean)
     return ['all', ...Array.from(new Set(subjects))]
   }
 
@@ -262,6 +262,8 @@ export default function HistoryPage() {
           ) : (
             <div className="space-y-4">
               {filteredAttempts.map((attempt) => {
+                if (!attempt.tests) return null
+                
                 const percentage = getPercentage(attempt.score, attempt.tests.total_marks)
                 const gradeInfo = getGrade(percentage)
                 
