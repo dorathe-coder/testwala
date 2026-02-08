@@ -16,7 +16,7 @@ interface Test {
   test_categories: {
     name: string
     icon: string
-  }
+  } | null
 }
 
 export default function ClonePage() {
@@ -77,7 +77,7 @@ export default function ClonePage() {
       .order('created_at', { ascending: false })
 
     setCurrentTest(currentTestData)
-    setAvailableTests(testsData || [])
+    setAvailableTests((testsData as Test[]) || [])
     setLoading(false)
   }
 
