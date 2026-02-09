@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { getUser } from '@/lib/auth'
 import Navbar from '@/components/Navbar'
 import Link from 'next/link'
-import { CheckCircle, XCircle, MinusCircle, Clock, Award, TrendingUp } from 'lucide-react'
+import { CheckCircle, XCircle, MinusCircle, Clock, Award, TrendingUp, ThumbsUp, ThumbsDown } from 'lucide-react'
 
 interface Result {
   score: number
@@ -103,6 +103,8 @@ export default function ResultsPage() {
       let incorrect_answers = 0
       let unattempted = 0
       
+      const marksPerQuestion = testData?.marks_per_question || 1
+      const negativeMarks = testData?.negative_marks || 0
       const formattedResults: QuestionResult[] = []
 
       if (questionsData && answersData) {
@@ -117,9 +119,12 @@ export default function ResultsPage() {
           } else if (selected_answer === question.correct_answer) {
             is_correct = true
             correct_answers++
-            score += question.marks || 1
+            score += marksPerQuestion
           } else {
             incorrect_answers++
+            if (testData?.negative_marking) {
+              score -= negativeMarks
+            }
           }
 
           formattedResults.push({
@@ -130,13 +135,16 @@ export default function ResultsPage() {
         })
       }
 
+      // Ensure score doesn't go below 0
+      score = Math.max(0, score)
+
       // If attempt data doesn't have results, calculate them
       const resultData: Result = {
-        score: attemptData?.score || score,
+        score: attemptData?.score !== null ? attemptData.score : score,
         total_questions: questionsData?.length || 0,
-        correct_answers: attemptData?.correct_answers || correct_answers,
-        incorrect_answers: attemptData?.incorrect_answers || incorrect_answers,
-        unattempted: attemptData?.unattempted || unattempted,
+        correct_answers: attemptData?.correct_answers !== null ? attemptData.correct_answers : correct_answers,
+        incorrect_answers: attemptData?.incorrect_answers !== null ? attemptData.incorrect_answers : incorrect_answers,
+        unattempted: attemptData?.unattempted !== null ? attemptData.unattempted : unattempted,
         time_taken: attemptData?.time_taken || 0
       }
 
@@ -191,6 +199,11 @@ export default function ResultsPage() {
     return { grade: 'F', color: 'text-red-600' }
   }
 
+  const isPassed = () => {
+    if (!result || !test) return false
+    return result.score >= (test.passing_marks || 0)
+  }
+
   // Calculate accuracy correctly
   const getAccuracy = () => {
     if (!result || result.total_questions === 0) return 0
@@ -217,6 +230,7 @@ export default function ResultsPage() {
   const gradeInfo = getGrade()
   const accuracy = getAccuracy()
   const attemptRate = getAttemptRate()
+  const passed = isPassed()
 
   return (
     <>
@@ -230,6 +244,27 @@ export default function ResultsPage() {
             </h1>
             <p className="text-gray-600 dark:text-gray-400">
               {test?.title}
+            </p>
+          </div>
+
+          {/* Pass/Fail Banner */}
+          <div className={`mb-8 p-6 rounded-xl shadow-lg text-center ${
+            passed 
+              ? 'bg-gradient-to-r from-green-500 to-emerald-600' 
+              : 'bg-gradient-to-r from-red-500 to-rose-600'
+          }`}>
+            <div className="flex items-center justify-center space-x-3 mb-2">
+              {passed ? (
+                <ThumbsUp className="w-12 h-12 text-white" />
+              ) : (
+                <ThumbsDown className="w-12 h-12 text-white" />
+              )}
+              <h2 className="text-4xl font-bold text-white">
+                {passed ? 'PASSED!' : 'FAILED'}
+              </h2>
+            </div>
+            <p className="text-white text-lg">
+              Passing marks: {test?.passing_marks || 0} | Your score: {result?.score || 0}
             </p>
           </div>
 
@@ -249,6 +284,24 @@ export default function ResultsPage() {
               </p>
             </div>
           </div>
+
+          {/* Marking Information */}
+          {test && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl mb-8 border border-blue-200 dark:border-blue-800">
+              <h3 className="font-bold text-blue-900 dark:text-blue-200 mb-2">Marking Scheme:</h3>
+              <div className="grid md:grid-cols-3 gap-4 text-sm">
+                <div className="text-blue-800 dark:text-blue-300">
+                  <span className="font-semibold">Correct Answer:</span> +{test.marks_per_question || 1} marks
+                </div>
+                <div className="text-blue-800 dark:text-blue-300">
+                  <span className="font-semibold">Wrong Answer:</span> {test.negative_marking ? `-${test.negative_marks}` : '0'} marks
+                </div>
+                <div className="text-blue-800 dark:text-blue-300">
+                  <span className="font-semibold">Unattempted:</span> 0 marks
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Stats Grid */}
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -292,7 +345,7 @@ export default function ResultsPage() {
               </div>
               <p className="text-3xl font-bold text-blue-600">{formatTime(result?.time_taken || 0)}</p>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Total questions: {result?.total_questions || 0}
+                Total: {test?.duration || 0}min
               </p>
             </div>
           </div>
@@ -377,21 +430,33 @@ export default function ResultsPage() {
                     </h3>
                     <div className="ml-4 flex flex-col items-end">
                       {qr.is_correct ? (
-                        <span className="flex items-center text-green-600 font-bold mb-1">
-                          <CheckCircle className="w-6 h-6 mr-1" /> Correct
-                        </span>
+                        <>
+                          <span className="flex items-center text-green-600 font-bold mb-1">
+                            <CheckCircle className="w-6 h-6 mr-1" /> Correct
+                          </span>
+                          <span className="text-sm text-green-600">
+                            +{test?.marks_per_question || 1} marks
+                          </span>
+                        </>
                       ) : qr.selected_answer ? (
-                        <span className="flex items-center text-red-600 font-bold mb-1">
-                          <XCircle className="w-6 h-6 mr-1" /> Incorrect
-                        </span>
+                        <>
+                          <span className="flex items-center text-red-600 font-bold mb-1">
+                            <XCircle className="w-6 h-6 mr-1" /> Incorrect
+                          </span>
+                          <span className="text-sm text-red-600">
+                            {test?.negative_marking ? `-${test.negative_marks}` : '0'} marks
+                          </span>
+                        </>
                       ) : (
-                        <span className="flex items-center text-gray-600 font-bold mb-1">
-                          <MinusCircle className="w-6 h-6 mr-1" /> Not Attempted
-                        </span>
+                        <>
+                          <span className="flex items-center text-gray-600 font-bold mb-1">
+                            <MinusCircle className="w-6 h-6 mr-1" /> Not Attempted
+                          </span>
+                          <span className="text-sm text-gray-600">
+                            0 marks
+                          </span>
+                        </>
                       )}
-                      <span className="text-sm text-gray-600 dark:text-gray-400">
-                        Marks: {qr.marks}
-                      </span>
                     </div>
                   </div>
 
