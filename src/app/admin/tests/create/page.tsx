@@ -26,7 +26,10 @@ export default function CreateTestPage() {
     difficulty: 'Medium',
     duration: 60,
     total_marks: 100,
-    negative_marking: false
+    marks_per_question: 1,
+    passing_marks: 40,
+    negative_marking: false,
+    negative_marks: 0.25
   })
   const router = useRouter()
 
@@ -77,7 +80,10 @@ export default function CreateTestPage() {
         difficulty: formData.difficulty,
         duration: formData.duration,
         total_marks: formData.total_marks,
+        marks_per_question: formData.marks_per_question,
+        passing_marks: formData.passing_marks,
         negative_marking: formData.negative_marking,
+        negative_marks: formData.negative_marking ? formData.negative_marks : 0,
         is_active: true
       }])
       .select()
@@ -216,7 +222,7 @@ export default function CreateTestPage() {
               </div>
             </div>
 
-            {/* Duration & Marks */}
+            {/* Duration & Total Marks */}
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -247,18 +253,84 @@ export default function CreateTestPage() {
               </div>
             </div>
 
+            {/* NEW: Marks Per Question & Passing Marks */}
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Marks Per Question *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  step="0.5"
+                  value={formData.marks_per_question}
+                  onChange={(e) => setFormData({ ...formData, marks_per_question: parseFloat(e.target.value) })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  placeholder="e.g., 1, 2, 4"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Same marks will apply to all questions
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Passing Marks *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  max={formData.total_marks}
+                  value={formData.passing_marks}
+                  onChange={(e) => setFormData({ ...formData, passing_marks: parseInt(e.target.value) })}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  placeholder="e.g., 40"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Minimum marks required to pass
+                </p>
+              </div>
+            </div>
+
             {/* Negative Marking */}
-            <div className="flex items-center space-x-3">
-              <input
-                type="checkbox"
-                id="negative_marking"
-                checked={formData.negative_marking}
-                onChange={(e) => setFormData({ ...formData, negative_marking: e.target.checked })}
-                className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <label htmlFor="negative_marking" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Enable Negative Marking
-              </label>
+            <div className="border border-gray-300 dark:border-gray-700 rounded-lg p-4 space-y-3">
+              <div className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  id="negative_marking"
+                  checked={formData.negative_marking}
+                  onChange={(e) => setFormData({ ...formData, negative_marking: e.target.checked })}
+                  className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="negative_marking" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Enable Negative Marking
+                </label>
+              </div>
+
+              {/* NEW: Negative Marks Input */}
+              {formData.negative_marking && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Negative Marks (per wrong answer) *
+                  </label>
+                  <select
+                    required={formData.negative_marking}
+                    value={formData.negative_marks}
+                    onChange={(e) => setFormData({ ...formData, negative_marks: parseFloat(e.target.value) })}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  >
+                    <option value="0.25">-0.25 marks</option>
+                    <option value="0.33">-0.33 marks (1/3)</option>
+                    <option value="0.5">-0.5 marks</option>
+                    <option value="1">-1 mark</option>
+                  </select>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Marks deducted for each incorrect answer
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Submit Buttons */}
