@@ -23,6 +23,7 @@ interface TestLeaderboard {
   score: number
   percentage: number
   completed_at: string
+  rank: number
 }
 
 export default function LeaderboardPage() {
