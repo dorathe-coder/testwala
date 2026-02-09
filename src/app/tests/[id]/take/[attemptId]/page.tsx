@@ -164,13 +164,17 @@ export default function TakeTestPage() {
     setSubmitting(true)
     
     try {
-      // Calculate score
+      // Calculate score with new marking system
       let correct = 0
       let incorrect = 0
       let unattempted = 0
       let score = 0
 
       const userAnswers = []
+      
+      // Get marks per question and negative marks from test
+      const marksPerQuestion = test.marks_per_question || 1
+      const negativeMarks = test.negative_marks || 0
 
       for (const question of questions) {
         const answer = answers[question.id]
@@ -189,32 +193,42 @@ export default function TakeTestPage() {
 
           if (isCorrect) {
             correct++
-            score += question.marks
+            score += marksPerQuestion
+            userAnswers.push({
+              attempt_id: attemptId,
+              question_id: question.id,
+              selected_answer: answer.selectedAnswer,
+              is_correct: true,
+              marks_obtained: marksPerQuestion
+            })
           } else {
             incorrect++
-            // Check if negative marking is enabled
-            if (test.negative_marking) {
-              // Deduct marks for wrong answer (usually -1 or -0.25 per question)
-              score = Math.max(0, score - (test.negative_marking_value || 1))
-            }
+            // Apply negative marking if enabled
+            const penaltyMarks = test.negative_marking ? negativeMarks : 0
+            score -= penaltyMarks
+            
+            userAnswers.push({
+              attempt_id: attemptId,
+              question_id: question.id,
+              selected_answer: answer.selectedAnswer,
+              is_correct: false,
+              marks_obtained: -penaltyMarks
+            })
           }
-
-          userAnswers.push({
-            attempt_id: attemptId,
-            question_id: question.id,
-            selected_answer: answer.selectedAnswer,
-            is_correct: isCorrect,
-            marks_obtained: isCorrect ? question.marks : (test.negative_marking ? -(test.negative_marking_value || 1) : 0)
-          })
         }
       }
+
+      // Ensure score doesn't go below 0
+      score = Math.max(0, score)
 
       console.log('Calculated Results:', {
         score,
         correct,
         incorrect,
         unattempted,
-        total_questions: questions.length
+        total_questions: questions.length,
+        marksPerQuestion,
+        negativeMarks
       })
 
       // First, delete any existing answers for this attempt to avoid duplicates
@@ -378,7 +392,7 @@ export default function TakeTestPage() {
                   Q{currentQuestionIndex + 1}. {currentQuestion?.question_text}
                 </h2>
                 <span className="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-full text-sm font-medium">
-                  {currentQuestion?.marks} marks
+                  {test?.marks_per_question || 1} marks
                 </span>
               </div>
 
