@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { getUser } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import Navbar from '@/components/Navbar'
-import { Clock, Award, TrendingUp, BookOpen, Calendar, ChevronRight } from 'lucide-react'
+import { Clock, Award, TrendingUp, BookOpen, Calendar, ChevronRight, Target } from 'lucide-react'
 
 interface Stats {
   totalAttempts: number
@@ -204,32 +204,48 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Quick Actions */}
-          <div className="grid md:grid-cols-2 gap-6 mb-8">
+          {/* Quick Actions - 3 Cards */}
+          <div className="grid md:grid-cols-3 gap-6 mb-8">
             <Link
               href="/tests"
-              className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 rounded-xl shadow-lg text-white hover:shadow-xl transition-shadow"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 rounded-xl shadow-lg text-white hover:shadow-xl transition-shadow group"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-2xl font-bold mb-2">Browse Tests</h3>
-                  <p className="text-blue-100">Explore {stats.totalTests} available tests</p>
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-white/20 rounded-lg">
+                  <BookOpen className="w-8 h-8 text-white" />
                 </div>
-                <ChevronRight className="w-8 h-8" />
+                <ChevronRight className="w-6 h-6 text-white/60 group-hover:text-white transition-colors" />
               </div>
+              <h3 className="text-2xl font-bold mb-2">Browse Tests</h3>
+              <p className="text-blue-100">Explore {stats.totalTests} available tests</p>
             </Link>
 
             <Link
-              href="/tests"
-              className="bg-gradient-to-r from-green-600 to-teal-600 p-6 rounded-xl shadow-lg text-white hover:shadow-xl transition-shadow"
+              href="/study-planner"
+              className="bg-gradient-to-r from-purple-600 to-pink-600 p-6 rounded-xl shadow-lg text-white hover:shadow-xl transition-shadow group"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-2xl font-bold mb-2">Start Practice</h3>
-                  <p className="text-green-100">Begin a new test now</p>
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-white/20 rounded-lg">
+                  <Target className="w-8 h-8 text-white" />
                 </div>
-                <ChevronRight className="w-8 h-8" />
+                <ChevronRight className="w-6 h-6 text-white/60 group-hover:text-white transition-colors" />
               </div>
+              <h3 className="text-2xl font-bold mb-2">Study Planner</h3>
+              <p className="text-purple-100">Create personalized schedule</p>
+            </Link>
+
+            <Link
+              href="/history"
+              className="bg-gradient-to-r from-green-600 to-teal-600 p-6 rounded-xl shadow-lg text-white hover:shadow-xl transition-shadow group"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 bg-white/20 rounded-lg">
+                  <Clock className="w-8 h-8 text-white" />
+                </div>
+                <ChevronRight className="w-6 h-6 text-white/60 group-hover:text-white transition-colors" />
+              </div>
+              <h3 className="text-2xl font-bold mb-2">Test History</h3>
+              <p className="text-green-100">View past performance</p>
             </Link>
           </div>
 
