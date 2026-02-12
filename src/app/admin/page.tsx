@@ -47,22 +47,26 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
-  async function loadStats() {
-    const [usersCount, testsCount, categoriesCount, attemptsCount] = await Promise.all([
-      supabase.from('users').select('id', { count: 'exact', head: true }),
-      supabase.from('tests').select('id', { count: 'exact', head: true }),
-      supabase.from('test_categories').select('id', { count: 'exact', head: true }),
-      supabase.from('test_attempts').select('id', { count: 'exact', head: true })
-    ])
+async function loadStats() {
+  console.log('Loading admin stats...')
+  
+  const [usersCount, testsCount, categoriesCount, attemptsCount] = await Promise.all([
+    supabase.from('users').select('*', { count: 'exact' }),
+    supabase.from('tests').select('id', { count: 'exact', head: true }),
+    supabase.from('test_categories').select('id', { count: 'exact', head: true }),
+    supabase.from('test_attempts').select('id', { count: 'exact', head: true })
+  ])
 
-    setStats({
-      totalUsers: usersCount.count || 0,
-      totalTests: testsCount.count || 0,
-      totalCategories: categoriesCount.count || 0,
-      totalAttempts: attemptsCount.count || 0
-    })
-  }
+  console.log('Users count result:', usersCount)
+  console.log('Total users:', usersCount.count)
 
+  setStats({
+    totalUsers: usersCount.count || 0,
+    totalTests: testsCount.count || 0,
+    totalCategories: categoriesCount.count || 0,
+    totalAttempts: attemptsCount.count || 0
+  })
+}
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -131,7 +135,20 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </Link>
-
+<Link
+              href="/admin/users"
+              className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-shadow"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                  <Users className="w-8 h-8 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">Manage Users</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">View all registered users</p>
+                </div>
+              </div>
+            </Link>
             <Link
               href="/admin/tests"
               className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-shadow"
