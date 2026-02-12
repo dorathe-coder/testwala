@@ -178,12 +178,12 @@ export default function ResultsPage() {
     }
   }
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}m ${secs}s`
-  }
-
+const formatTime = (seconds: number) => {
+  if (!seconds || isNaN(seconds) || seconds < 0) return '0m 0s'
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins}m ${secs}s`
+}
   const getPercentage = () => {
     if (!result || !test || test.total_marks === 0) return 0
     return Math.round((result.score / test.total_marks) * 100)

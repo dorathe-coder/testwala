@@ -52,14 +52,16 @@ export default function CreateStudyPlanPage() {
     setLoading(false)
   }
 
-  async function loadSyllabus(examType: string) {
-    const { data } = await supabase
-      .from('exam_syllabi')
-      .select('*')
-      .eq('exam_type', examType)
+async function loadSyllabus(examType: string) {
+  // Temporary: Create dummy syllabus since table doesn't exist
+  const dummySyllabus = [
+    { exam_type: examType, subject: 'Mathematics', topics: ['Algebra', 'Geometry', 'Calculus'], total_questions: 30, recommended_hours: 20 },
+    { exam_type: examType, subject: 'Science', topics: ['Physics', 'Chemistry', 'Biology'], total_questions: 30, recommended_hours: 20 },
+    { exam_type: examType, subject: 'English', topics: ['Grammar', 'Comprehension', 'Writing'], total_questions: 20, recommended_hours: 15 }
+  ]
+  setSyllabi(dummySyllabus)
+}
 
-    setSyllabi(data || [])
-  }
 
   function toggleWeakSubject(subject: string) {
     setFormData(prev => ({

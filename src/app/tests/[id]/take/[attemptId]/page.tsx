@@ -162,6 +162,12 @@ export default function TakeTestPage() {
   async function submitTest() {
     if (submitting) return
     setSubmitting(true)
+
+    console.log('=== SUBMIT TEST STARTED ===')
+    console.log('Test Duration (minutes):', test.duration)
+    console.log('Time Remaining (seconds):', timeRemaining)
+    console.log('Questions Count:', questions.length)
+    console.log('Attempt ID:', attemptId)
     
     try {
       // Calculate score with new marking system
@@ -203,7 +209,6 @@ export default function TakeTestPage() {
             })
           } else {
             incorrect++
-            // Apply negative marking if enabled
             const penaltyMarks = test.negative_marking ? negativeMarks : 0
             score -= penaltyMarks
             
@@ -221,15 +226,18 @@ export default function TakeTestPage() {
       // Ensure score doesn't go below 0
       score = Math.max(0, score)
 
-      console.log('Calculated Results:', {
-        score,
-        correct,
-        incorrect,
-        unattempted,
-        total_questions: questions.length,
-        marksPerQuestion,
-        negativeMarks
-      })
+      // Calculate time taken
+      const timeTaken = Math.max(0, (test.duration * 60) - timeRemaining)
+
+      console.log('=== CALCULATED RESULTS ===')
+      console.log('Time Taken (seconds):', timeTaken)
+      console.log('Score:', score)
+      console.log('Correct:', correct)
+      console.log('Incorrect:', incorrect)
+      console.log('Unattempted:', unattempted)
+      console.log('Total Questions:', questions.length)
+      console.log('Marks Per Question:', marksPerQuestion)
+      console.log('Negative Marks:', negativeMarks)
 
       // First, delete any existing answers for this attempt to avoid duplicates
       const { error: deleteError } = await supabase
@@ -242,6 +250,7 @@ export default function TakeTestPage() {
       }
 
       // Save user answers in batches
+      console.log('Saving', userAnswers.length, 'answers...')
       const batchSize = 10
       for (let i = 0; i < userAnswers.length; i += batchSize) {
         const batch = userAnswers.slice(i, i + batchSize)
@@ -254,10 +263,9 @@ export default function TakeTestPage() {
           throw answersError
         }
       }
+      console.log('Answers saved successfully!')
 
       // Update test attempt with calculated results
-      const timeTaken = (test.duration * 60) - timeRemaining
-      
       const updateData = {
         score: score,
         total_questions: questions.length,
@@ -269,12 +277,18 @@ export default function TakeTestPage() {
         is_completed: true
       }
 
+      console.log('=== UPDATE DATA ===')
       console.log('Updating attempt with:', updateData)
 
-      const { error: updateError } = await supabase
+      const { data: updateResult, error: updateError } = await supabase
         .from('test_attempts')
         .update(updateData)
         .eq('id', attemptId)
+        .select()
+
+      console.log('=== UPDATE RESPONSE ===')
+      console.log('Update Error:', updateError)
+      console.log('Update Result:', updateResult)
 
       if (updateError) {
         console.error('Error updating attempt:', updateError)

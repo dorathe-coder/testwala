@@ -58,37 +58,43 @@ export default function HistoryPage() {
     setLoading(false)
   }
 
-  async function loadHistory(userId: string) {
-    const { data } = await supabase
-      .from('test_attempts')
-      .select(`
-        id,
-        test_id,
-        score,
-        correct_answers,
-        incorrect_answers,
-        unattempted,
-        time_taken,
-        completed_at,
-        tests (
-          title,
-          subject,
-          total_marks,
-          duration,
-          difficulty,
-          test_categories (
-            name,
-            icon
-          )
+async function loadHistory(userId: string) {
+  const { data, error } = await supabase
+    .from('test_attempts')
+    .select(`
+      id,
+      test_id,
+      score,
+      correct_answers,
+      incorrect_answers,
+      unattempted,
+      time_taken,
+      completed_at,
+      tests!inner (
+        title,
+        subject,
+        total_marks,
+        duration,
+        difficulty,
+        category_id,
+        test_categories (
+          name,
+          icon
         )
-      `)
-      .eq('user_id', userId)
-      .not('completed_at', 'is', null)
-      .order('completed_at', { ascending: false })
+      )
+    `)
+    .eq('user_id', userId)
+    .eq('is_completed', true)
+    .not('completed_at', 'is', null)
+    .order('completed_at', { ascending: false })
 
-    setAttempts(data as any || [])
+  if (error) {
+    console.error('Error loading history:', error)
   }
 
+  console.log('History data:', data)
+  setAttempts(data as any || [])
+}
   function applyFilters() {
     let filtered = [...attempts]
 
