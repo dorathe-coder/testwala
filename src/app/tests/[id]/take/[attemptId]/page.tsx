@@ -101,7 +101,7 @@ export default function TakeTestPage() {
   const params = useParams()
   const testId = params.id as string
   const attemptId = params.attemptId as string
-  const autoSaveRef = useRef<NodeJS.Timeout>()
+  const autoSaveRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => { loadTestData() }, [])
 
